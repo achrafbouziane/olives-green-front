@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { apiClient } from './api-client';
-import { PaymentIntentRequest, PaymentIntentResponse } from 'libs/data-access/src/lib';
+import { PaymentIntentRequest, PaymentIntentResponse } from '@olives-green/shared-types';
 
 const INVOICE_SERVICE = '/invoice-service/api';
 

@@ -1,5 +1,4 @@
 // ... Enums ...
-
 export type JobStatus = 'PENDING' | 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'INVOICED';
 
 export type QuoteStatus = 
@@ -55,4 +54,31 @@ export interface CreateQuoteRequest {
   lineItems: CreateLineItemRequest[];
   mockupImageUrls?: string[]; // New Field
 
+}
+
+
+export interface JobDTO {
+  id: string;
+  quoteId: string;
+  // We embed essential info to avoid extra fetches, or assume the backend provides it
+  title: string; // e.g., "Web Request: Christmas Lights"
+  clientName: string;
+  propertyAddress: string;
+  
+  status: 'PENDING' | 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'INVOICED';
+  
+  // Scheduling Info
+  scheduledStartDate?: string; // ISO Date
+  scheduledEndDate?: string;   // ISO Date
+  assignedTeamId?: string;
+}
+
+export interface UpdateJobStatusRequest {
+  status: JobDTO['status'];
+}
+
+export interface ScheduleJobRequest {
+  startDate: string;
+  endDate: string;
+  assignedTeamId?: string;
 }

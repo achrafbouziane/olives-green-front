@@ -7,6 +7,7 @@ import { ServiceEditor } from './pages/service-editor';
 import { UserList } from './pages/user-list'; // Ensure UserList is imported
 import { LoginPage } from './pages/login-page';
 import { ProtectedRoute } from './components/protected-route';
+import { ForcePasswordChange } from './pages/force-password-change';
 
 function DashboardHome() {
   return (
@@ -24,11 +25,15 @@ export function App() {
         {/* Public Route: Login */}
         <Route path="/login" element={<LoginPage />} />
         
+        <Route element={<ProtectedRoute allowedRoles={['ADMIN', 'EMPLOYEE']} />}>
+            <Route path="/force-password-change" element={<ForcePasswordChange />} />
+        </Route>
+
         {/* Protected Routes: Only 'ADMIN' role can access */}
         <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
             <Route path="/" element={<AdminLayout />}>
                 <Route index element={<DashboardHome />} />
-                
+                <Route path="/force-password-change" element={<ForcePasswordChange />} />
                 <Route path="quotes" element={<QuoteList />} />
                 <Route path="quotes/:id" element={<QuoteDetail />} />
                 

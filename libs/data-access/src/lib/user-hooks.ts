@@ -7,6 +7,7 @@ export interface UserDTO {
   lastName: string;
   email: string;
   role: 'ADMIN' | 'EMPLOYEE' | 'CUSTOMER';
+  mustChangePassword?: boolean;
 }
 
 // Combined Request Type for Create/Update

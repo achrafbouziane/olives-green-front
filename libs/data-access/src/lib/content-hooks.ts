@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from './api-client';
-import { ServicePageDTO } from 'libs/data-access/src/lib';
+import { ServicePageDTO } from '@olives-green/shared-types';
 
 // Base URL for Content Service
 // Final URL becomes: http://localhost:8080/content-service/api/v1/content/pages

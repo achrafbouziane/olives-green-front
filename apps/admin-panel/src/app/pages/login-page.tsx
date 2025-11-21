@@ -35,6 +35,11 @@ export function LoginPage() {
       localStorage.setItem('user_role', user.role);
       localStorage.setItem('user_name', user.firstName);
 
+      if (user.mustChangePassword) {
+          navigate('/force-password-change');
+          return;
+      }
+
       // Go to Dashboard
       navigate('/');
       

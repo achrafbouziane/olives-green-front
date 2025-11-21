@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from './api-client';
-import { CreateQuoteRequest, QuoteDTO, QuoteStatus } from 'libs/data-access/src/lib';
-import { CreateCustomerRequest, CustomerDTO, CreatePropertyRequest, PropertyDTO } from 'libs/data-access/src/lib';
-
+import { CreateQuoteRequest, QuoteDTO, QuoteStatus } from '@olives-green/shared-types';
+import { CreateCustomerRequest, CustomerDTO, CreatePropertyRequest, PropertyDTO } from '@olives-green/shared-types';
+import { JobDTO, ScheduleJobRequest } from '@olives-green/shared-types';
 const JOB_SERVICE = '/job-service/api';
 const CUSTOMER_SERVICE = '/customer-service/api';
 
