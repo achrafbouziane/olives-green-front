@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Optional: Add global styles for public client here */
+body {
+  @apply bg-white text-slate-900;
+}
