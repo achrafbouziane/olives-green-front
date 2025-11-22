@@ -1,23 +1,8 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from './api-client';
+import { UserDTO, UserRequest } from '@olives-green/shared-types';
 
-export interface UserDTO {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  role: 'ADMIN' | 'EMPLOYEE' | 'CUSTOMER';
-  mustChangePassword?: boolean;
-}
 
-// Combined Request Type for Create/Update
-export interface UserRequest {
-  firstName: string;
-  lastName: string;
-  email: string;
-  role: string;
-  password?: string; // Only for create
-}
 
 
 

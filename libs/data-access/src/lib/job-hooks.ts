@@ -179,3 +179,63 @@ export function useCreateQuote() {
   const reset = () => { setIsSuccess(false); setError(null); };
   return { createQuote, isLoading, error, isSuccess, reset };
 }
+
+export function useJobs() {
+  const [jobs, setJobs] = useState<JobDTO[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchJobs = async () => {
+    setIsLoading(true);
+    try {
+      // Assuming GET /job-service/api/v1/jobs
+      const res = await apiClient.get<JobDTO[]>(`${JOB_SERVICE}/v1/jobs`);
+      setJobs(res.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchJobs(); }, []);
+  return { jobs, isLoading, refetch: fetchJobs };
+}
+
+export function useJobById(id: string | undefined) {
+  const [job, setJob] = useState<JobDTO | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchJob = async () => {
+    if (!id) return;
+    setIsLoading(true);
+    try {
+      const res = await apiClient.get<JobDTO>(`${JOB_SERVICE}/v1/jobs/${id}`);
+      setJob(res.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchJob(); }, [id]);
+  return { job, isLoading, refetch: fetchJob };
+}
+
+export function useJobActions() {
+  const scheduleJob = async (id: string, data: ScheduleJobRequest) => {
+    try {
+      await apiClient.post(`${JOB_SERVICE}/v1/jobs/${id}/schedule`, data);
+      return true;
+    } catch (e) { return false; }
+  };
+
+  const updateStatus = async (id: string, status: string) => {
+    try {
+      await apiClient.put(`${JOB_SERVICE}/v1/jobs/${id}/status`, { status });
+      return true;
+    } catch (e) { return false; }
+  };
+
+  return { scheduleJob, updateStatus };
+}

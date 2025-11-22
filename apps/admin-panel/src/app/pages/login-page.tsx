@@ -20,18 +20,19 @@ export function LoginPage() {
       // POST to Gateway -> User Service
       // Gateway route: /user-service/api/v1/auth/login
       const res = await apiClient.post('/user-service/api/v1/auth/login', { email, password });
+      const { accessToken, refreshToken, user } = res.data;
       
-      const { token, user } = res.data;
 
       // Frontend Role Check (UX only - Security is enforced by Gateway)
-      if (user.role !== 'ADMIN') {
+      if (user.role !== 'ADMIN' && user.role !== 'EMPLOYEE') {
           setError("Access Denied. Admin privileges required.");
           setIsLoading(false);
           return;
       }
 
       // Store Session
-      localStorage.setItem('auth_token', token);
+      localStorage.setItem('auth_token', accessToken);
+      localStorage.setItem('refresh_token', refreshToken);
       localStorage.setItem('user_role', user.role);
       localStorage.setItem('user_name', user.firstName);
 
@@ -73,7 +74,7 @@ export function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)} 
                 className="w-full pl-10 py-2.5 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-all" 
                 required 
-                placeholder="admin@seasonscape.com"
+                placeholder="admin@olivesgreen.com"
               />
             </div>
           </div>

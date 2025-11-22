@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { useUsers, UserDTO, UserRequest } from '@olives-green/data-access';
+import { UserDTO, UserRequest } from '@olives-green/shared-types';
 import { Card, Button } from '@olives-green/shared-ui';
 import { User, Plus, Shield, ShieldCheck, Mail, Edit, Trash2 } from 'lucide-react';
 import { UserDialog } from '../components/user-dialog'; // Import Dialog
+import { useUsers } from '@olives-green/data-access';
 
 export function UserList() {
   const { users, isLoading, createUser, updateUser, deleteUser } = useUsers();
@@ -30,7 +31,7 @@ export function UserList() {
   };
 
   if (isLoading) return <div className="p-10 text-center">Loading...</div>;
-
+  console.log('Rendering UserList with users:', users);
   return (
     <div className="max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-6">

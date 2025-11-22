@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserDTO, UserRequest } from '@olives-green/data-access';
+import { UserDTO, UserRequest } from '@olives-green/shared-types';
 import { Button } from '@olives-green/shared-ui';
 import { X, Save } from 'lucide-react';
 
@@ -45,6 +45,7 @@ export function UserDialog({ isOpen, onClose, onSave, initialData }: UserDialogP
   };
 
   if (!isOpen) return null;
+  console.log('Rendering UserDialog with initialData:', initialData);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -84,7 +85,6 @@ export function UserDialog({ isOpen, onClose, onSave, initialData }: UserDialogP
             <select className="w-full p-2 border rounded bg-white" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
               <option value="EMPLOYEE">Employee</option>
               <option value="ADMIN">Admin</option>
-              <option value="CUSTOMER">Customer</option>
             </select>
           </div>
 
