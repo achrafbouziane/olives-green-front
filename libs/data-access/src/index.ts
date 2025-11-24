@@ -4,3 +4,4 @@ export * from './lib/job-hooks';
 export * from './lib/content-hooks';
 export * from './lib/payment-hooks';
 export * from './lib/user-hooks';
+export * from './lib/storage-hooks';

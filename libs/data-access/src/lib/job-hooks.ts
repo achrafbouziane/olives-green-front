@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from './api-client';
 import { CreateQuoteRequest, QuoteDTO, QuoteStatus } from '@olives-green/shared-types';
-import { CreateCustomerRequest, CustomerDTO, CreatePropertyRequest, PropertyDTO } from '@olives-green/shared-types';
+import { JobVisitRequest, CustomerDTO, PropertyDTO } from '@olives-green/shared-types';
 import { JobDTO, ScheduleJobRequest } from '@olives-green/shared-types';
 const JOB_SERVICE = '/job-service/api';
 const CUSTOMER_SERVICE = '/customer-service/api';
@@ -146,7 +146,7 @@ export function useCreateQuote() {
         state: formData.state,
         postalCode: formData.postalCode || '00000',
         customerId: customerId,
-        notes: 'Web Request'
+        notes: ''
       });
 
       // 3. Quote Logic (FIXED)
@@ -160,7 +160,7 @@ export function useCreateQuote() {
       const quotePayload: CreateQuoteRequest = {
         customerId: customerId,
         propertyId: propertyRes.data.id,
-        title: `Web Request: ${formData.serviceType}`,
+        title: `${formData.serviceType}`,
         requestDetails: detailedRequest, // <--- Save PERMANENTLY here
         lineItems: [] // Empty line items initially! Admin will add them.
       };
@@ -223,19 +223,54 @@ export function useJobById(id: string | undefined) {
 }
 
 export function useJobActions() {
+  const [isProcessing, setIsProcessing] = useState(false);
   const scheduleJob = async (id: string, data: ScheduleJobRequest) => {
     try {
       await apiClient.post(`${JOB_SERVICE}/v1/jobs/${id}/schedule`, data);
       return true;
-    } catch (e) { return false; }
+    } catch (e: any) { 
+      // IMPROVED ERROR LOGGING
+      console.error("Schedule Job Failed:", e.response?.data || e.message);
+      return false; 
+    }
   };
 
-  const updateStatus = async (id: string, status: string) => {
+  const updateStatus = async (id: string, newStatus: string) => {
     try {
-      await apiClient.put(`${JOB_SERVICE}/v1/jobs/${id}/status`, { status });
+      await apiClient.put(`${JOB_SERVICE}/v1/jobs/${id}/status`, { newStatus: newStatus });
       return true;
-    } catch (e) { return false; }
+    } catch (e: any) { 
+      console.error("Update Status Failed:", e.response?.data || e.message);
+      return false; 
+    }
   };
 
-  return { scheduleJob, updateStatus };
+  // ✅ NEW: Check In (Start Visit)
+  const checkIn = async (jobId: string, employeeId: string) => {
+    setIsProcessing(true);
+    try {
+      // POST /api/v1/jobs/{id}/checkin?assignedEmployeeId=...
+      await apiClient.post(`${JOB_SERVICE}/v1/jobs/${jobId}/checkin`, null, {
+        params: { assignedEmployeeId: employeeId }
+      });
+      return true;
+    } catch (e) { 
+      console.error("Check-in failed", e);
+      return false; 
+    } finally { setIsProcessing(false); }
+  };
+
+  // ✅ NEW: Update Visit (Notes, Photos, Checkout)
+  const updateVisit = async (visitId: string, data: JobVisitRequest) => {
+    setIsProcessing(true);
+    try {
+      await apiClient.put(`${JOB_SERVICE}/v1/jobs/visits/${visitId}`, data);
+      return true;
+    } catch (e) { 
+      console.error("Update visit failed", e);
+      return false; 
+    } finally { setIsProcessing(false); }
+  };
+
+  return { scheduleJob, updateStatus, checkIn, updateVisit, isProcessing };
 }

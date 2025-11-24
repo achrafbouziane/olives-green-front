@@ -60,25 +60,47 @@ export interface CreateQuoteRequest {
 export interface JobDTO {
   id: string;
   quoteId: string;
-  // We embed essential info to avoid extra fetches, or assume the backend provides it
-  title: string; // e.g., "Web Request: Christmas Lights"
+  title: string;
   clientName: string;
   propertyAddress: string;
-  
   status: 'PENDING' | 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'INVOICED';
   
-  // Scheduling Info
-  scheduledStartDate?: string; // ISO Date
-  scheduledEndDate?: string;   // ISO Date
-  assignedTeamId?: string;
+  // READ: The backend only returns the Date (YYYY-MM-DD)
+  scheduledDate?: string; 
+  
+  assignedEmployeeId?: string; 
+  visits?: JobVisitDTO[];
 }
 
 export interface UpdateJobStatusRequest {
-  status: JobDTO['status'];
+  newStatus: JobDTO['status'];
 }
 
 export interface ScheduleJobRequest {
-  startDate: string;
-  endDate: string;
-  assignedTeamId?: string;
+  jobId: string;           // New field required by Backend Record
+  assignedEmployeeId: string;
+  startTime: string;       // Renamed from startDate
+  endTime: string;         // Renamed from endDate
+  notes?: string;          // Added optional notes
+}
+
+export interface JobVisitDTO {
+  id: string;
+  jobId: string;
+  assignedEmployeeId: string;
+  checkInTime: string;       // ISO String
+  checkOutTime?: string;     // ISO String (nullable)
+  notes?: string;
+  tasksCompleted?: string[];
+  beforePhotoUrls?: string[];
+  afterPhotoUrls?: string[];
+}
+
+export interface JobVisitRequest {
+  assignedEmployeeId?: string; // Optional if just updating notes
+  notes?: string;
+  tasks?: string[];
+  beforePhotos?: string[];
+  afterPhotos?: string[];
+  endTime?: string; // ISO String for checkout
 }

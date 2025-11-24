@@ -34,16 +34,17 @@ export function App() {
           <Route path="/" element={<AdminLayout />}>
             <Route path="jobs" element={<JobList />} />
             <Route path="schedule" element={<SchedulePage />} />
+            <Route path="jobs/:id" element={<JobDetail />} />
           </Route>
         </Route>
 
         {/* Protected Routes: Only 'ADMIN' role can access */}
-        <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
-          <Route path="/" element={<AdminLayout />}>
-            <Route index element={<DashboardHome />} />
+      <Route element={<ProtectedRoute allowedRoles={['ADMIN','EMPLOYEE']} />}>
+        <Route path="/" element={<AdminLayout />}>
+          <Route index element={<DashboardHome />} />
+          <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
             <Route path="quotes" element={<QuoteList />} />
             <Route path="quotes/new" element={<CreateQuotePage />} />
-            <Route path="jobs/:id" element={<JobDetail />} />
             {/* <--- ADD THIS ROUTE */}
             <Route path="quotes/:id" element={<QuoteDetail />} />
             <Route path="services" element={<ServiceList />} />
@@ -57,6 +58,7 @@ export function App() {
               path="*"
               element={<div className="p-20 text-center">Page Not Found</div>}
             />
+          </Route>
           </Route>
         </Route>
       </Routes>

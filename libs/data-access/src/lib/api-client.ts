@@ -57,7 +57,7 @@ apiClient.interceptors.response.use(
 
       try {
         // Call Backend to get new Access Token
-        const { data } = await axios.post('/api/user-service/api/v1/auth/refresh-token', {
+        const { data } = await axios.post('/user-service/api/v1/auth/refresh-token', {
            refreshToken: refreshToken
         });
 

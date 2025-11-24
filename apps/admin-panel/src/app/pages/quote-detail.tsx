@@ -1,13 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useQuoteById, useAdminQuoteActions } from '@olives-green/data-access';
-import { CreateQuoteRequest, CreateLineItemRequest } from '@olives-green/shared-types';
+import { useQuoteById, useAdminQuoteActions, useUpdateQuoteStatus, useJobs } from '@olives-green/data-access';
+import { CreateQuoteRequest, CreateLineItemRequest, QuoteStatus } from '@olives-green/shared-types';
 import { Card, Button } from '@olives-green/shared-ui';
-import { MapPin, User, Send, Save, ArrowLeft, Plus, Trash2, ExternalLink, Image as ImageIcon, Lock } from 'lucide-react';
+import { PhotoManager } from '../components/photo-manager'; // ✅ Import
+import { 
+  MapPin, User, Send, Save, ArrowLeft, Plus, Trash2, ExternalLink, 
+  Image as ImageIcon, Lock, AlertTriangle, Hammer, CheckCircle, XCircle 
+} from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
+// Fix Leaflet Icon
 const icon = L.icon({
   iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
   shadowUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
@@ -18,79 +23,55 @@ const icon = L.icon({
 
 export function QuoteDetail() {
   const { id } = useParams();
+  
   const { quote, isLoading, refetch } = useQuoteById(id);
   const { updateQuotePrice, sendEstimate, isProcessing } = useAdminQuoteActions();
+  const { updateStatus } = useUpdateQuoteStatus();
+  const { jobs } = useJobs(); 
   
   const [lineItems, setLineItems] = useState<CreateLineItemRequest[]>([]);
   
-  // New State for Mockups
+  // ✅ Use Array State for Photos
   const [mockups, setMockups] = useState<string[]>([]);
-  const [newMockupUrl, setNewMockupUrl] = useState('');
-  const isEditable = quote?.status === 'REQUESTED' || quote?.status === 'ESTIMATE_SENT';
 
-  // --- PARSING LOGIC ---
-  // We prioritize the PERMANENT requestDetails field if available
+  const isEditable = quote?.status === 'REQUESTED' || quote?.status === 'ESTIMATE_SENT';
+  const linkedJob = jobs.find(j => j.quoteId === quote?.id);
+
   const rawDescription = quote?.requestDetails || quote?.lineItems[0]?.description || '';
-  
   const coordsMatch = rawDescription.match(/Coordinates: ([\d.-]+), ([\d.-]+)/);
   const position = coordsMatch ? { lat: parseFloat(coordsMatch[1]), lng: parseFloat(coordsMatch[2]) } : null;
-
   const locationMatch = rawDescription.match(/Location: (.*?)(?:\n|$)/);
   const displayLocation = locationMatch ? locationMatch[1] : 'Location info not available';
-
   const clientMatch = rawDescription.match(/Client: (.*?)(?:\n|$)/);
   const displayClient = clientMatch ? clientMatch[1] : 'Guest User';
-
   const notesMatch = rawDescription.split('Notes: ');
   const displayNotes = notesMatch.length > 1 ? notesMatch[1] : 'No additional notes.';
 
   useEffect(() => {
     if (quote) {
-      // Initialize Mockups
       setMockups(quote.mockupImageUrls || []);
-
-      // Initialize Line Items
-      // If price > 0 or multiple items, load existing estimate work
       if (quote.lineItems.length > 1 || (quote.lineItems[0] && quote.lineItems[0].unitPrice > 0)) {
-         setLineItems(quote.lineItems.map((item: { description: any; unitPrice: any; quantity: any; }) => ({
+         setLineItems(quote.lineItems.map((item: any) => ({
             description: item.description,
             unitPrice: item.unitPrice,
             quantity: item.quantity
          })));
       } else {
-         // Clean slate for new estimate
-         setLineItems([{
-            description: `Professional ${quote.title} Service`, 
-            unitPrice: 0,
-            quantity: 1
-         }]);
+         setLineItems([{ description: `Professional ${quote.title} Service`, unitPrice: 0, quantity: 1 }]);
       }
     }
   }, [quote]);
 
   // --- ACTIONS ---
-
   const updateItem = (index: number, field: keyof CreateLineItemRequest, value: any) => {
     const newItems = [...lineItems];
     newItems[index] = { ...newItems[index], [field]: value };
     setLineItems(newItems);
   };
-
   const addItem = () => setLineItems([...lineItems, { description: 'Item', unitPrice: 0, quantity: 1 }]);
   const removeItem = (index: number) => setLineItems(lineItems.filter((_, i) => i !== index));
   const calculateTotal = () => lineItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
-
-  // Mockup Actions
-  const addMockup = () => {
-    if (newMockupUrl) {
-      setMockups([...mockups, newMockupUrl]);
-      setNewMockupUrl('');
-    }
-  };
-  const removeMockup = (index: number) => {
-    setMockups(mockups.filter((_, i) => i !== index));
-  };
-
+  
   const handleSave = async () => {
     if (!quote) return;
     const payload: CreateQuoteRequest = {
@@ -99,7 +80,7 @@ export function QuoteDetail() {
         title: quote.title,
         requestDetails: quote.requestDetails || '', 
         lineItems: lineItems,
-        mockupImageUrls: mockups // Save mockups
+        mockupImageUrls: mockups // ✅ Save Mockups
     };
     if (await updateQuotePrice(quote.id, payload)) {
         refetch();
@@ -112,8 +93,19 @@ export function QuoteDetail() {
     await handleSave();
     if (await sendEstimate(quote.id)) {
         refetch();
-        alert("Estimate Generated!");
+        alert("Estimate Generated & Sent!");
     }
+  };
+
+  const handleStatusChange = async (status: QuoteStatus) => {
+      if (!quote) return;
+      if (!window.confirm(`Are you sure you want to manually mark this quote as ${status}?`)) return;
+      if (await updateStatus(quote.id, status)) {
+          refetch();
+          window.location.reload(); 
+      } else {
+          alert("Failed to update status");
+      }
   };
 
   const magicLink = quote?.magicLinkToken 
@@ -124,24 +116,48 @@ export function QuoteDetail() {
   if (!quote) return <div className="p-10 text-center">Not found</div>;
 
   return (
-    <div className="max-w-6xl mx-auto pb-20">
-      <Link to="/quotes" className="flex items-center text-slate-500 mb-6"><ArrowLeft size={16} /> Back</Link>
+    <div className="max-w-6xl mx-auto pb-20 px-4">
+      <Link to="/quotes" className="flex items-center text-slate-500 mb-6 hover:text-emerald-600 transition-colors">
+          <ArrowLeft size={16} className="mr-2"/> Back to Quotes
+      </Link>
+      
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+         <div>
+            <div className="flex items-center gap-3">
+                <h1 className="text-3xl font-bold text-slate-900">{quote.title}</h1>
+                <span className={`px-3 py-1 rounded-full font-bold text-xs border uppercase tracking-wide
+                    ${quote.status === 'APPROVED' || quote.status === 'DEPOSIT_PAID' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 
+                    quote.status === 'REJECTED' ? 'bg-red-100 text-red-700 border-red-200' :
+                    'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                    {quote.status.replace('_', ' ')}
+                </span>
+            </div>
+            <div className="text-xs text-slate-400 font-mono mt-1">ID: {quote.id}</div>
+         </div>
+
+         {linkedJob && (
+             <Link to={`/jobs/${linkedJob.id}`}>
+                 <Button className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md">
+                     <Hammer size={18} className="mr-2"/> View Linked Job
+                 </Button>
+             </Link>
+         )}
+      </div>
       
       <div className="grid lg:grid-cols-3 gap-8">
-        {/* LEFT: Customer Data */}
         <div className="lg:col-span-1 space-y-6">
            <Card>
-             <h3 className="font-bold text-slate-700 mb-2 flex items-center gap-2"><User size={18}/> Request</h3>
-             <div className="text-sm space-y-2">
-                <p className="font-medium">{displayClient}</p>
-                <div className="bg-slate-50 p-2 rounded text-xs italic text-slate-600">"{displayNotes.trim()}"</div>
+             <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><User size={18}/> Request Details</h3>
+             <div className="space-y-3">
+                <div><label className="text-xs font-bold text-slate-400 uppercase">Name</label><p className="font-medium">{displayClient}</p></div>
+                <div><label className="text-xs font-bold text-slate-400 uppercase">Notes</label><div className="bg-slate-50 p-2 rounded text-sm italic text-slate-600 border border-slate-100">"{displayNotes.trim()}"</div></div>
              </div>
            </Card>
 
            <Card className="p-0 overflow-hidden">
              <div className="p-3 bg-slate-50 border-b flex justify-between items-center">
                 <span className="font-bold text-slate-700 text-sm flex gap-2"><MapPin size={16}/> Location</span>
-                {!position && <a href={`https://www.google.com/maps?q=${displayLocation}`} target="_blank" className="text-xs text-blue-600 underline">Google Maps</a>}
+                {!position && <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(displayLocation)}`} target="_blank" rel="noreferrer" className="text-xs text-blue-600 underline">Google Maps</a>}
              </div>
              {position ? (
                 <div className="h-48 w-full">
@@ -155,124 +171,86 @@ export function QuoteDetail() {
              )}
            </Card>
            
-           {magicLink && (
-             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-               <h4 className="text-sm font-bold text-emerald-800 mb-2">Estimate Sent!</h4>
-               <div className="bg-white p-2 rounded border border-emerald-100 text-xs font-mono break-all select-all cursor-text">{magicLink}</div>
-               <a href={magicLink} target="_blank" className="block mt-2 text-center text-xs font-bold text-emerald-700 hover:underline">Test Link &rarr;</a>
-             </div>
-           )}
+           <div className="space-y-6">
+               {magicLink && (
+                 <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                   <h4 className="text-sm font-bold text-emerald-800 mb-2 flex items-center gap-2"><Send size={14}/> Estimate Sent</h4>
+                   <div className="bg-white p-2 rounded border border-emerald-100 text-xs font-mono break-all select-all cursor-text text-slate-500">{magicLink}</div>
+                   <a href={magicLink} target="_blank" rel="noreferrer" className="block mt-2 text-center text-xs font-bold text-emerald-700 hover:underline">Open Customer View →</a>
+                 </div>
+               )}
+
+               <Card className="border-dashed border-slate-300 bg-slate-50/50">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-bold text-slate-600 flex items-center gap-2 text-sm"><AlertTriangle size={16} className="text-amber-500"/> Admin Override</h3>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <button onClick={() => handleStatusChange('APPROVED')} disabled={quote.status === 'APPROVED' || isProcessing} className="flex items-center justify-center gap-1 py-2 px-1 rounded border text-[10px] font-bold bg-white hover:bg-emerald-50 text-emerald-700 border-emerald-200 transition-all">
+                            <CheckCircle size={12}/> Mark Approved
+                        </button>
+                        <button onClick={() => handleStatusChange('REJECTED')} disabled={quote.status === 'REJECTED' || isProcessing} className="flex items-center justify-center gap-1 py-2 px-1 rounded border text-[10px] font-bold bg-white hover:bg-red-50 text-red-700 border-red-200 transition-all">
+                            <XCircle size={12}/> Mark Rejected
+                        </button>
+                        <button onClick={() => handleStatusChange('DEPOSIT_PAID')} disabled={quote.status === 'DEPOSIT_PAID' || isProcessing} className="col-span-2 py-2 px-1 rounded border text-[10px] font-bold bg-white hover:bg-purple-50 text-purple-700 border-purple-200 transition-all">
+                             Mark Deposit Paid (Force Job Create)
+                        </button>
+                    </div>
+               </Card>
+           </div>
         </div>
 
-        {/* RIGHT: Editable Invoice */}
         <div className="lg:col-span-2 space-y-6">
-           {/* MOCKUPS SECTION */}
+           
+           {/* ✅ NEW: PHOTO MANAGER FOR MOCKUPS */}
            <Card>
-             <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
-               <ImageIcon size={18}/> Project Mockups
-             </h3>
-              {!isEditable && <span className="text-xs text-slate-400 flex items-center gap-1"><Lock size={12}/> Locked</span>}
-
-             <div className="grid grid-cols-3 gap-4 mb-4">
-               {mockups.map((url, idx) => (
-                 <div key={idx} className="relative group aspect-video bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
-                   <img src={url} alt="Mockup" className="w-full h-full object-cover" />
-                   <button 
-                     onClick={() => removeMockup(idx)}
-                     className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                   >
-                     <Trash2 size={12} />
-                   </button>
-                 </div>
-               ))}
-             </div>
-
-
-             {isEditable && (
-               <div className="flex gap-2">
-                 <input 
-                   type="text" 
-                   value={newMockupUrl}
-                   onChange={(e) => setNewMockupUrl(e.target.value)}
-                   placeholder="Paste image URL here..."
-                   className="flex-1 p-2 text-sm border rounded"
-                 />
-                 <Button variant="secondary" onClick={addMockup} className="px-3"><Plus size={16}/></Button>
-               </div>
-             )}
+             <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><ImageIcon size={18}/> Project Mockups</h3>
+             {!isEditable && <span className="text-xs text-slate-400 flex items-center gap-1 mb-2"><Lock size={12}/> Locked</span>}
+             
+             <PhotoManager 
+                photos={mockups} 
+                onChange={setMockups} 
+                readOnly={!isEditable} 
+             />
            </Card>
 
-           {/* ESTIMATE EDITOR */}
-  <Card>
+           <Card>
              <div className="flex justify-between mb-6">
-               <h2 className="text-xl font-bold">Estimate Details</h2>
-               
+               <h2 className="text-xl font-bold text-slate-800">Estimate Breakdown</h2>
                <div className="flex items-center gap-3">
-                   {!isEditable && (
-                       <div className="flex items-center gap-1 text-slate-500 text-sm bg-slate-100 px-3 py-1 rounded-full">
-                           <Lock size={14} /> Read Only
-                       </div>
-                   )}
-                   <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-bold uppercase">
-                     {quote.status}
-                   </span>
+                   {!isEditable && <div className="flex items-center gap-1 text-slate-500 text-sm bg-slate-100 px-3 py-1 rounded-full"><Lock size={14} /> Read Only</div>}
                </div>
              </div>
 
-             <div className="space-y-4">
+             <div className="space-y-3">
                {lineItems.map((item, idx) => (
-                 <div key={idx} className={`flex gap-3 items-start p-3 rounded border ${isEditable ? 'bg-slate-50 border-slate-100' : 'bg-slate-50/50 border-transparent'}`}>
+                 <div key={idx} className={`flex gap-3 items-start p-3 rounded border transition-all ${isEditable ? 'bg-white border-slate-200 hover:shadow-sm' : 'bg-slate-50 border-transparent'}`}>
                    <div className="flex-1">
-                      <label className="text-xs font-bold text-slate-500">Description</label>
-                      <textarea 
-                        value={item.description} 
-                        onChange={e => updateItem(idx, 'description', e.target.value)} 
-                        disabled={!isEditable} // DISABLE INPUT
-                        className="w-full p-2 text-sm border rounded h-16 disabled:bg-transparent disabled:border-0 disabled:resize-none disabled:p-0" 
-                      />
+                      <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Description</label>
+                      <textarea value={item.description} onChange={e => updateItem(idx, 'description', e.target.value)} disabled={!isEditable} className="w-full p-2 text-sm border border-slate-200 rounded h-16 focus:ring-2 focus:ring-emerald-500 outline-none resize-none disabled:bg-transparent disabled:border-0 disabled:p-0" />
                    </div>
                    <div className="w-24">
-                      <label className="text-xs font-bold text-slate-500">Price ($)</label>
-                      <input 
-                        type="number" 
-                        value={item.unitPrice} 
-                        onChange={e => updateItem(idx, 'unitPrice', parseFloat(e.target.value))} 
-                        disabled={!isEditable} // DISABLE INPUT
-                        className="w-full p-2 text-sm border rounded disabled:bg-transparent disabled:border-0 disabled:p-0 disabled:font-bold" 
-                      />
+                      <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Price ($)</label>
+                      <input type="number" value={item.unitPrice} onChange={e => updateItem(idx, 'unitPrice', parseFloat(e.target.value))} disabled={!isEditable} className="w-full p-2 text-sm border border-slate-200 rounded focus:ring-2 focus:ring-emerald-500 outline-none disabled:bg-transparent disabled:border-0 disabled:p-0 disabled:font-bold" />
                    </div>
                    <div className="w-16">
-                      <label className="text-xs font-bold text-slate-500">Qty</label>
-                      <input 
-                        type="number" 
-                        value={item.quantity} 
-                        onChange={e => updateItem(idx, 'quantity', parseFloat(e.target.value))} 
-                        disabled={!isEditable} // DISABLE INPUT
-                        className="w-full p-2 text-sm border rounded disabled:bg-transparent disabled:border-0 disabled:p-0" 
-                      />
+                      <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Qty</label>
+                      <input type="number" value={item.quantity} onChange={e => updateItem(idx, 'quantity', parseFloat(e.target.value))} disabled={!isEditable} className="w-full p-2 text-sm border border-slate-200 rounded focus:ring-2 focus:ring-emerald-500 outline-none disabled:bg-transparent disabled:border-0 disabled:p-0" />
                    </div>
-                   
-                   {isEditable && (
-                     <button onClick={() => removeItem(idx)} className="mt-6 text-slate-400 hover:text-red-500"><Trash2 size={18}/></button>
-                   )}
+                   {isEditable && <button onClick={() => removeItem(idx)} className="mt-6 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={18}/></button>}
                  </div>
                ))}
-               
-               {isEditable && (
-                 <button onClick={addItem} className="w-full py-2 border-2 border-dashed text-slate-500 hover:bg-slate-50 rounded flex justify-center items-center gap-2"><Plus size={16}/> Add Item</button>
-               )}
+               {isEditable && <button onClick={addItem} className="w-full py-3 border-2 border-dashed border-slate-200 text-slate-400 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg flex justify-center items-center gap-2 transition-all"><Plus size={16}/> Add Line Item</button>}
              </div>
 
-             <div className="mt-6 pt-6 border-t flex justify-end gap-8">
-               <div className="text-right"><p className="text-xs text-slate-500">Deposit (50%)</p><p className="text-lg font-bold text-emerald-600">${(calculateTotal() * 0.5).toFixed(2)}</p></div>
-               <div className="text-right"><p className="text-xs text-slate-500">Total</p><p className="text-3xl font-bold text-slate-900">${calculateTotal().toFixed(2)}</p></div>
+             <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col items-end gap-1">
+               <div className="flex justify-between w-full md:w-1/3 text-sm"><span className="text-slate-500">Deposit (50%)</span><span className="font-bold text-emerald-600">${(calculateTotal() * 0.5).toFixed(2)}</span></div>
+               <div className="flex justify-between w-full md:w-1/3 text-xl pt-2 border-t border-slate-100 mt-2"><span className="font-bold text-slate-800">Total Estimate</span><span className="font-extrabold text-slate-900">${calculateTotal().toFixed(2)}</span></div>
              </div>
 
-             {/* Hide Action Buttons if Locked */}
              {isEditable && (
-               <div className="mt-6 flex gap-3 justify-end border-t pt-4">
-                 <Button variant="secondary" onClick={handleSave} disabled={isProcessing}><Save size={16} className="mr-2"/> Save Draft</Button>
-                 <Button variant="primary" onClick={handleSend} disabled={isProcessing}><Send size={16} className="mr-2"/> Send to Customer</Button>
+               <div className="mt-8 flex gap-3 justify-end pt-6 border-t border-slate-100">
+                 <Button variant="secondary" onClick={handleSave} disabled={isProcessing} className="px-6"><Save size={18} className="mr-2"/> Save Draft</Button>
+                 <Button variant="primary" onClick={handleSend} disabled={isProcessing} className="px-6 shadow-lg shadow-emerald-100"><Send size={18} className="mr-2"/> Send to Customer</Button>
                </div>
              )}
            </Card>
@@ -281,4 +259,3 @@ export function QuoteDetail() {
     </div>
   );
 }
-

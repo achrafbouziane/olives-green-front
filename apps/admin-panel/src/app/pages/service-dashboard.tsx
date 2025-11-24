@@ -7,20 +7,14 @@ import { JobList } from './job-list';
 import { SchedulePage } from './schedule-page';
 import { Card, Button } from '@olives-green/shared-ui';
 import { 
-  LayoutDashboard, 
-  FileText, 
-  Hammer, 
-  Calendar as CalendarIcon, 
-  Edit, 
-  ArrowLeft,
-  ExternalLink,
-  Plus
+  LayoutDashboard, FileText, Hammer, Calendar as CalendarIcon, Edit, 
+  ArrowLeft, ExternalLink, Plus, Clock, ChevronRight, User
 } from 'lucide-react';
+import { format } from 'date-fns';
 
 export function ServiceDashboard() {
   const { slug } = useParams();
   
-  // 1. Fetch Data for Context & Stats
   const { service, isLoading: serviceLoading } = useServiceBySlug(slug);
   const { quotes } = useQuotes();
   const { jobs } = useJobs();
@@ -30,76 +24,160 @@ export function ServiceDashboard() {
   if (serviceLoading) return <div className="p-20 text-center text-slate-500">Loading Service...</div>;
   if (!service) return <div className="p-20 text-center text-red-500">Service not found</div>;
 
-  // 2. Define Filter Key
-  // We use the Service Title (e.g., "Landscaping") to filter the lists
-  const FILTER_KEY = service.title;
+  // --- DYNAMIC FILTER LOGIC ---
+  const FILTER_KEY = service.title; 
 
-  // 3. Calculate Overview Stats (Parent Logic)
-  // We filter here just to show the numbers on the cards
-  const serviceQuotes = quotes.filter(q => q.title.toLowerCase().includes(FILTER_KEY.toLowerCase()));
-  const serviceJobs = jobs.filter(j => j.title.toLowerCase().includes(FILTER_KEY.toLowerCase()));
+  const serviceQuotes = quotes.filter(q => (q.title || '').toLowerCase().includes(FILTER_KEY.toLowerCase()));
+  const serviceJobs = jobs.filter(j => (j.title || '').toLowerCase().includes(FILTER_KEY.toLowerCase()));
   
   const pendingCount = serviceQuotes.filter(q => q.status === 'REQUESTED').length;
   const activeJobCount = serviceJobs.filter(j => ['SCHEDULED', 'IN_PROGRESS'].includes(j.status)).length;
   const totalRevenue = serviceQuotes.reduce((acc, q) => acc + (q.totalAmount || 0), 0);
   const conversionRate = serviceQuotes.length > 0 ? Math.round((serviceJobs.length / serviceQuotes.length) * 100) : 0;
 
-  // --- INTERNAL COMPONENT: Quick Stats ---
+  // --- HELPER COMPONENTS FOR DASHBOARD ---
+  
   const QuickStats = () => (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-      <Card className="bg-white border-l-4 border-emerald-500 shadow-sm">
-        <div className="text-slate-500 text-xs font-bold uppercase tracking-wider">Total Revenue</div>
-        <div className="text-2xl font-bold text-slate-800 mt-1">
-            ${totalRevenue.toLocaleString()}
-        </div>
-      </Card>
-      <Card className="bg-white border-l-4 border-blue-500 shadow-sm">
-         <div className="text-slate-500 text-xs font-bold uppercase tracking-wider">Pending Requests</div>
+      <div className="bg-white border-l-4 border-emerald-500 shadow-sm p-5 rounded-r-xl">
+        <div className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Revenue</div>
+        <div className="text-2xl font-bold text-slate-800 mt-1">${totalRevenue.toLocaleString()}</div>
+      </div>
+      <div className="bg-white border-l-4 border-blue-500 shadow-sm p-5 rounded-r-xl">
+         <div className="text-slate-400 text-xs font-bold uppercase tracking-wider">Pending Requests</div>
          <div className="text-2xl font-bold text-slate-800 mt-1">{pendingCount}</div>
-      </Card>
-      <Card className="bg-white border-l-4 border-amber-500 shadow-sm">
-         <div className="text-slate-500 text-xs font-bold uppercase tracking-wider">Active Jobs</div>
+      </div>
+      <div className="bg-white border-l-4 border-amber-500 shadow-sm p-5 rounded-r-xl">
+         <div className="text-slate-400 text-xs font-bold uppercase tracking-wider">Active Jobs</div>
          <div className="text-2xl font-bold text-slate-800 mt-1">{activeJobCount}</div>
-      </Card>
-      <Card className="bg-white border-l-4 border-purple-500 shadow-sm">
-         <div className="text-slate-500 text-xs font-bold uppercase tracking-wider">Conversion Rate</div>
-         <div className="text-2xl font-bold text-slate-800 mt-1">
-            {conversionRate}%
-         </div>
-      </Card>
+      </div>
+      <div className="bg-white border-l-4 border-purple-500 shadow-sm p-5 rounded-r-xl">
+         <div className="text-slate-400 text-xs font-bold uppercase tracking-wider">Conversion Rate</div>
+         <div className="text-2xl font-bold text-slate-800 mt-1">{conversionRate}%</div>
+      </div>
+    </div>
+  );
+
+  // Lightweight List for Quotes Widget
+  const RecentQuotesWidget = () => (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+            <h3 className="font-bold text-slate-700 flex items-center gap-2"><FileText size={18} className="text-blue-500"/> Recent Requests</h3>
+            <button onClick={() => setActiveTab('QUOTES')} className="text-xs font-medium text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors">View All</button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2">
+            {serviceQuotes.length > 0 ? (
+                <div className="space-y-2">
+                    {serviceQuotes.slice(0, 5).map(quote => (
+                        <Link to={`/quotes/${quote.id}`} key={quote.id} className="block p-3 hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-200 transition-all group">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <div className="font-bold text-slate-800 text-sm group-hover:text-blue-600 transition-colors">{quote.requestDetails?.match(/Client: (.*?)(?:\n|$)/)?.[1] || 'Guest'}</div>
+                                    <div className="text-xs text-slate-500 mt-0.5">{quote.title}</div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="font-mono text-xs font-bold text-slate-700">${quote.totalAmount?.toLocaleString() || 0}</div>
+                                    <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                        quote.status === 'REQUESTED' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'
+                                    }`}>{quote.status.replace('_',' ')}</span>
+                                </div>
+                            </div>
+                        </Link>
+                    ))}
+                </div>
+            ) : (
+                <div className="h-40 flex flex-col items-center justify-center text-slate-400">
+                    <FileText size={32} className="opacity-20 mb-2"/>
+                    <p className="text-sm">No requests found</p>
+                </div>
+            )}
+        </div>
+        <div className="p-3 border-t border-slate-100 text-center">
+            <Link to="/quotes/new" className="text-xs font-bold text-emerald-600 hover:underline flex items-center justify-center gap-1"><Plus size={12}/> Create Manual Quote</Link>
+        </div>
+    </div>
+  );
+
+  // Lightweight List for Jobs Widget
+  const ActiveJobsWidget = () => (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+            <h3 className="font-bold text-slate-700 flex items-center gap-2"><Hammer size={18} className="text-amber-500"/> Upcoming Jobs</h3>
+            <button onClick={() => setActiveTab('JOBS')} className="text-xs font-medium text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors">View All</button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2">
+            {serviceJobs.length > 0 ? (
+                <div className="space-y-2">
+                    {serviceJobs.slice(0, 5).map(job => (
+                        <Link to={`/jobs/${job.id}`} key={job.id} className="block p-3 hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-200 transition-all group">
+                            <div className="flex justify-between items-start">
+                                <div className="flex items-start gap-3">
+                                    <div className={`mt-1 w-2 h-2 rounded-full ${job.status === 'SCHEDULED' ? 'bg-blue-500' : job.status === 'IN_PROGRESS' ? 'bg-amber-500' : 'bg-slate-300'}`}></div>
+                                    <div>
+                                        <div className="font-bold text-slate-800 text-sm group-hover:text-blue-600 transition-colors">{job.clientName || 'Unknown Client'}</div>
+                                        <div className="text-xs text-slate-500 mt-0.5">{job.title}</div>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    {job.scheduledDate ? (
+                                        <div className="flex items-center gap-1 text-xs text-slate-600 bg-slate-100 px-2 py-1 rounded">
+                                            <Clock size={10}/> {format(new Date(job.scheduledDate), 'MMM dd')}
+                                        </div>
+                                    ) : (
+                                        <span className="text-[10px] italic text-slate-400">Unscheduled</span>
+                                    )}
+                                </div>
+                            </div>
+                        </Link>
+                    ))}
+                </div>
+            ) : (
+                <div className="h-40 flex flex-col items-center justify-center text-slate-400">
+                    <Hammer size={32} className="opacity-20 mb-2"/>
+                    <p className="text-sm">No active jobs</p>
+                </div>
+            )}
+        </div>
+        <div className="p-3 border-t border-slate-100 text-center">
+            <button onClick={() => setActiveTab('SCHEDULE')} className="text-xs font-bold text-blue-600 hover:underline flex items-center justify-center gap-1">View Full Schedule <ChevronRight size={12}/></button>
+        </div>
     </div>
   );
 
   return (
-    <div className="max-w-7xl mx-auto pb-20">
-      {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+    <div className="max-w-7xl mx-auto pb-20 px-6">
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 mt-2">
          <div>
             <Link to="/services" className="text-slate-500 hover:text-slate-800 flex items-center gap-1 mb-2 text-sm font-medium transition-colors">
                 <ArrowLeft size={16}/> Back to Services
             </Link>
-            <div className="flex items-center gap-3">
-                {service.imageUrl && (
-                    <img src={service.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover shadow-sm border border-slate-200"/>
+            <div className="flex items-center gap-4">
+                {service.imageUrl ? (
+                    <img src={service.imageUrl} alt="" className="w-14 h-14 rounded-xl object-cover shadow-sm border border-slate-200"/>
+                ) : (
+                    <div className="w-14 h-14 bg-slate-100 rounded-xl flex items-center justify-center text-2xl font-bold text-slate-400">
+                        {service.title.charAt(0)}
+                    </div>
                 )}
-                <h1 className="text-3xl font-bold text-slate-800">
-                    {service.title} <span className="text-slate-300 font-light">| Manager</span>
-                </h1>
+                <div>
+                    <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">{service.title}</h1>
+                    <p className="text-slate-500 text-sm font-medium">Service Dashboard</p>
+                </div>
             </div>
          </div>
-         <div className="flex gap-2">
-             {/* Link to Manual Quote Creation pre-tagged with this service */}
+         <div className="flex gap-3">
              <Link to={`/quotes/new?service=${service.title}`}>
-                <Button variant="primary"><Plus size={16} className="mr-2"/> New Quote</Button>
+                <Button variant="primary" className="shadow-lg shadow-emerald-100"><Plus size={18} className="mr-2"/> New Quote</Button>
              </Link>
              <a href={`/service/${service.pageSlug}`} target="_blank" rel="noreferrer">
-                <Button variant="secondary"><ExternalLink size={16} className="mr-2"/> Public Page</Button>
+                <Button variant="secondary" className="bg-white border border-slate-200 hover:bg-slate-50"><ExternalLink size={18} className="mr-2"/> Public Page</Button>
              </a>
          </div>
       </div>
 
-      {/* TABS NAVIGATION */}
-      <div className="border-b border-slate-200 mb-6 flex gap-8 overflow-x-auto">
+      {/* TABS */}
+      <div className="border-b border-slate-200 mb-8 flex gap-8 overflow-x-auto">
          {[
            { id: 'OVERVIEW', label: 'Overview', icon: LayoutDashboard },
            { id: 'QUOTES', label: 'Quotes', icon: FileText, count: pendingCount },
@@ -107,100 +185,56 @@ export function ServiceDashboard() {
            { id: 'SCHEDULE', label: 'Schedule', icon: CalendarIcon },
            { id: 'CONTENT', label: 'Page Content', icon: Edit },
          ].map(tab => (
-            <button 
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`pb-3 flex items-center gap-2 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${
-                activeTab === tab.id 
-                  ? 'border-emerald-600 text-emerald-600' 
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-            >
+            <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
+              className={`pb-3 flex items-center gap-2 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${activeTab === tab.id ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
                <tab.icon size={16}/> {tab.label}
-               {/* Notification Badge */}
-               {tab.count !== undefined && tab.count > 0 && (
-                   <span className="bg-emerald-100 text-emerald-700 text-[10px] px-1.5 py-0.5 rounded-full">
-                       {tab.count}
-                   </span>
-               )}
+               {tab.count !== undefined && tab.count > 0 && <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{tab.count}</span>}
             </button>
          ))}
       </div>
 
-      {/* CONTENT AREA */}
+      {/* BODY */}
       <div className="animate-in fade-in duration-300 min-h-[400px]">
-         
-         {/* 1. OVERVIEW TAB */}
          {activeTab === 'OVERVIEW' && (
              <div className="space-y-8">
                 <QuickStats />
-                
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Widget: Recent Quotes */}
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                            <h3 className="font-bold text-slate-700">Recent Requests</h3>
-                            <button onClick={() => setActiveTab('QUOTES')} className="text-xs text-blue-600 hover:underline">View All</button>
-                        </div>
-                        {/* Reuse QuoteList with 'slice' logic isn't possible via props easily, so we just show the filtered list constrained by height or let it flow. 
-                            For a dashboard widget, we usually just show the main list or a simplified version. 
-                            Here we reuse the full component but it will show all. */}
-                        <div className="max-h-[400px] overflow-y-auto border rounded-xl shadow-sm">
-                           <QuoteList serviceFilter={FILTER_KEY} />
-                        </div>
-                    </div>
-
-                    {/* Widget: Active Jobs */}
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                            <h3 className="font-bold text-slate-700">Active Jobs</h3>
-                            <button onClick={() => setActiveTab('JOBS')} className="text-xs text-blue-600 hover:underline">View All</button>
-                        </div>
-                        <div className="max-h-[400px] overflow-y-auto border rounded-xl shadow-sm">
-                           <JobList serviceFilter={FILTER_KEY} />
-                        </div>
-                    </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-[450px]">
+                    <RecentQuotesWidget />
+                    <ActiveJobsWidget />
                 </div>
              </div>
          )}
-
-         {/* 2. QUOTES TAB */}
+         
+         {/* These tabs use the FULL COMPLEX COMPONENTS you requested */}
          {activeTab === 'QUOTES' && (
-            <div>
-                <div className="mb-4 flex justify-between items-center">
-                    <h2 className="text-lg font-bold text-slate-700">Quote Requests for {service.title}</h2>
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-slate-800">All Quotes</h2>
                 </div>
                 <QuoteList serviceFilter={FILTER_KEY} />
             </div>
          )}
 
-         {/* 3. JOBS TAB */}
          {activeTab === 'JOBS' && (
-            <div>
-                <div className="mb-4 flex justify-between items-center">
-                    <h2 className="text-lg font-bold text-slate-700">Job Management</h2>
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-slate-800">All Jobs</h2>
                 </div>
                 <JobList serviceFilter={FILTER_KEY} />
             </div>
          )}
 
-         {/* 4. SCHEDULE TAB */}
          {activeTab === 'SCHEDULE' && (
-             <div>
-                 <div className="mb-4">
-                    <h2 className="text-lg font-bold text-slate-700">{service.title} Schedule</h2>
-                    <p className="text-sm text-slate-500">Only showing jobs related to this service.</p>
+             <div className="space-y-4">
+                 <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-slate-800">Service Schedule</h2>
                  </div>
                  <SchedulePage serviceFilter={FILTER_KEY} />
              </div>
          )}
          
-         {/* 5. CONTENT TAB */}
          {activeTab === 'CONTENT' && (
              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-                 {/* We reuse the ServiceEditor. 
-                     Note: ServiceEditor expects to read 'slug' from URL, which matches here. 
-                     It handles its own fetching/saving. */}
                  <ServiceEditor /> 
              </div>
          )}

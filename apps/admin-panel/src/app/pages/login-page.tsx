@@ -35,6 +35,7 @@ export function LoginPage() {
       localStorage.setItem('refresh_token', refreshToken);
       localStorage.setItem('user_role', user.role);
       localStorage.setItem('user_name', user.firstName);
+      localStorage.setItem('user_id', user.id);
 
       if (user.mustChangePassword) {
           navigate('/force-password-change');
